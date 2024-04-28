@@ -7,7 +7,7 @@ body {
     font-family: 'Rounded';
 } */
 /* 添加自定義 CSS */
-/* .fixed-top {
+.fixed-top {
 	position: fixed;
 	top: 0;
 	width: 100%;
@@ -17,7 +17,7 @@ body {
 }
 .mybutton-style {
 	width: 80px;
-} */
+}
 
 /* back top button */
 .toTop-arrow {
