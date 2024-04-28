@@ -14,7 +14,7 @@ body {
 }
 .content {
 	margin-top: 100px;
-	padding-top: 150px; /* 確保內容不會被固定的元素遮擋 */
+	/* 確保內容不會被固定的元素遮擋 */
 }
 .mybutton-style {
 	width: 80px;
