@@ -7,18 +7,17 @@ body {
     font-family: 'Rounded';
 } */
 /* 添加自定義 CSS */
-.fixed-top {
+/* .fixed-top {
 	position: fixed;
 	top: 0;
 	width: 100%;
 }
 .content {
 	margin-top: 100px;
-	/* 確保內容不會被固定的元素遮擋 */
 }
 .mybutton-style {
 	width: 80px;
-}
+} */
 
 /* back top button */
 .toTop-arrow {

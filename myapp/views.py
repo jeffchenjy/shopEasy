@@ -5,7 +5,7 @@ from django.forms.models import model_to_dict
 import os
 from django.conf import settings
 from datetime import datetime
-
+from django.contrib.auth.decorators import login_required
 # Use Rest API
 from rest_framework import viewsets
 from .models import merchandise
@@ -14,26 +14,44 @@ class MerchandiseViewSet(viewsets.ModelViewSet):
     queryset = merchandise.objects.all()
     serializer_class = MerchandiseSerializer
 # Create your views here.
+
 def home(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     datas = merchandise.objects.all().order_by("cID")
     return render(request, 'home.html', locals())
+
 def book(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     title = "Book"
     datas = merchandise.objects.filter(cSort='Book').order_by("cID")
     return render(request, 'sort.html', locals())
+
 def computer(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     title = "Computer"
     datas = merchandise.objects.filter(cSort='Computer').order_by("cID")
     return render(request, 'sort.html', locals())
+
 def appliance(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     title = "Appliance"
     datas = merchandise.objects.filter(cSort='Appliance').order_by("cID")
     return render(request, 'sort.html', locals())
+
 def audio(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     title = "Audio"
     datas = merchandise.objects.filter(cSort='Audio').order_by("cID")
     return render(request, 'sort.html', locals())
+
 def addData(request):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     error = ''
     if request.method == "POST":
         cName = request.POST["cName"]
@@ -58,6 +76,8 @@ def addData(request):
     else:
         return render(request, "add.html", locals())
 def edit(request, id=None):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     error = ''
     if request.method == 'POST':
         cName = request.POST["cName"]
@@ -94,8 +114,9 @@ def edit(request, id=None):
     else:
         data = merchandise.objects.get(cID=id)
         return render(request, "edit.html", locals())
-    
 def delete(request, id=None):
+    if not request.user.is_authenticated:
+        return redirect('/admin/')
     if request.method == "POST":
         data = merchandise.objects.get(cID=id)
         image_path = os.path.join(settings.MEDIA_ROOT, 'pictures', data.cImageName)
