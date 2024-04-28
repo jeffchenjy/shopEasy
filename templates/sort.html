@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{%block title%}
+    <title>M.M.S - {{ title }}</title>
+    <style>
+        h1, h3, th{
+            text-align: center;
+        }
+        table{
+            margin-left: auto;
+            margin-right: auto;
+        }
+        table, th, td{
+            border-collapse: collapse;
+            border: 2px solid rgb(0, 0, 0);
+            font-family: sans-serif;
+        }
+        th, td {
+            padding: 8px 10px;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+    <div class="container-fluid content">
+        <h2 class="mb-4">{{ title }} Information</h2>
+        <!-- 表格標頭固定在頂部 -->
+        <table class="table table-striped table-bordered">
+          <thead class="thead-dark">
+            <tr>
+              <th>#</th>
+              <th>Picture</th>
+              <th style="width: 500px;">Name</th>
+              <th class="d-none d-md-table-cell">Author</th>
+              <th class="d-none d-md-table-cell">Company</th>
+              <th class="d-none d-md-table-cell">Sort</th>
+              <th class="d-none d-md-table-cell">Class</th>
+              <th class="d-none d-md-table-cell">Date</th>
+              <th class="d-none d-md-table-cell">Price(JPY¥)</th>
+              <th>Update</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 表格數據 -->
+            {% for data in datas %}
+            <tr class="table-success textBox">
+                <td scope="row">{{data.cID}}</th>
+                <td style="text-align: center;"><img src="/media/{{ data.cImage }}" style="width: 180px; height: 260px;"></td>
+                <td>{{ data.cName }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cAuthor }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cCompany }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cSort }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cClass }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cDate|date:"Y-m-d"}}</td>
+                <td class="d-none d-md-table-cell">{{ data.cPrice }}</td>
+                <td style="text-align: center;">
+                    <div style="display: block; margin-bottom: 20px;">
+                        <button id="editButton" onclick="editProduct({{ data.cID }})" class="btn btn-primary mybutton-style">Edit</button>
+                    </div>
+                    <div style="display: block;">
+                        <button id="deleteButton" onclick="deleteProduct({{ data.cID }})" class="btn btn-danger mybutton-style">Delete</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+    </div>
+<button type="button" id="BackTop" class="toTop-arrow"></button>
+<script>
+   function editProduct(cID) {
+        window.location.href = "/edit/" + cID;
+    }
+
+    function deleteProduct(cID) {
+        window.location.href = "/delete/" + cID;
+    }
+    $(function(){
+        $('#BackTop').click(function(){ 
+            $('html,body').animate({scrollTop:0}, 333);
+        });
+        $(window).scroll(function() {
+            if ( $(this).scrollTop() > 300 ){
+                $('#BackTop').fadeIn(222);
+            } else {
+                $('#BackTop').stop().fadeOut(222);
+            }
+        }).scroll();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{%block title%}
+    <title>Edit</title>
+    <style>
+        h1, h3{
+            text-align: center;
+        }
+        table{
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+        table, th, td{
+            border-collapse: collapse;
+            border: 2px solid rgb(0, 0, 0);
+            font-family: sans-serif;
+        }
+        th, td {
+            padding: 8px 10px;
+        }
+    </style>
+{% endblock %}
+{% block content %}
+    <div class="content">
+        <form action="" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <table cellpadding="5px">
+                <tr>
+                    <th>*Name</th><td><input type="text" id="cName" name="cName" placeholder="請輸入名稱" value="{{ data.cName}}" class="form-control" required></td>
+                </tr>
+                <tr>
+                    <th>Author</th><td><input type="text" id="cAuthor" name="cAuthor" placeholder="請輸入作者" value="{{ data.cAuthor}}" class="form-control"></td>
+                </tr>
+                <tr>
+                    <th>Company</th><td><input type="text" id="cCompany" name="cCompany" placeholder="請輸入公司" value="{{ data.cCompany}}" class="form-control"></td>
+                </tr>
+                <tr>
+                    <th>*Sort</th><td><input type="text" id="cSort" name="cSort" placeholder="請輸入類型" value="{{ data.cSort}}" class="form-control" required></td>
+                </tr>
+                <tr>
+                    <th>*Class</th><td><input type="text" id="cClass" name="cClass" placeholder="請輸入種類" value="{{ data.cClass}}" class="form-control" required></td>
+                </tr>
+                <tr>
+                    <th>Price</th><td><input type="text" id="cPrice" name="cPrice" placeholder="請輸入價格" value="{{ data.cPrice}}" class="form-control"></td>
+                </tr>
+                <tr>
+                    <th>*Date</th><td><input type="date" class="form-control" id="cDate" name="cDate" value="{{ data.cDate|date:'Y-m-d'}}" required></td>
+                </tr>
+                <tr>
+                    <th>Picture</th>
+                    <td>
+                        <img id="previewImage" src="/media/{{ data.cImage }}" style="width: 200px; height: 300px;">
+                    </td>
+                </tr>
+                <tr>
+                    <th>Update or add Picture</th>
+                    <td><input type="file" id="imageInput" name="image" onchange="loadFile(event)" class="form-control"></td>
+                </tr>
+                <tr>
+                    <th>Description</th>
+                    <td><textarea id="cDescription" name="cDescription" cols="50" rows="5" class="form-control">{{ data.cDescription }}</textarea></td>
+                </tr>
+                <tr>
+                    <td><strong style="color: red">{{ error }}</strong></td>
+                    <td>
+                        <button type="submit" class="btn btn-primary">Update</button>
+                    </td>
+                </tr>
+            </table>
+        </form>
+    </div>
+    <script>
+        var loadFile = function(event) {
+            var output = document.getElementById('previewImage');
+            output.src = URL.createObjectURL(event.target.files[0]);
+            output.onload = function() {
+                URL.revokeObjectURL(output.src) // free memory
+            }
+        };
+    </script>
+{% endblock %}
