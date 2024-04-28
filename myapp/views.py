@@ -14,7 +14,8 @@ class MerchandiseViewSet(viewsets.ModelViewSet):
     queryset = merchandise.objects.all()
     serializer_class = MerchandiseSerializer
 # Create your views here.
-
+def goToLogin(request):
+    return redirect('/admin/')
 def home(request):
     if not request.user.is_authenticated:
         return redirect('/admin/')

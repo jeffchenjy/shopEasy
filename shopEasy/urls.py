@@ -27,6 +27,7 @@ router = DefaultRouter()
 router.register(r'merchandises', MerchandiseViewSet)
 
 urlpatterns = [
+    path('', goToLogin),
     path('api/', include(router.urls)),
     path('admin/', admin.site.urls),
     path('add/', addData),
