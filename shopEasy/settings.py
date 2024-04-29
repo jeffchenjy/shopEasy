@@ -86,7 +86,9 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
+# Replace the SQLite DATABASES configuration with PostgreSQL:
+#postgres://postgre_django_shopeasydb_user:UJLDRQpINp4bLcT1y1ic2rfojIcpDr1M@dpg-confhvq1hbls73fhvrjg-a.oregon-postgres.render.com/postgre_django_shopeasydb
+DATABASES["default"] = dj_database_url.parse("postgres://postgre_django_shopeasydb_user:UJLDRQpINp4bLcT1y1ic2rfojIcpDr1M@dpg-confhvq1hbls73fhvrjg-a.oregon-postgres.render.com/postgre_django_shopeasydb")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
