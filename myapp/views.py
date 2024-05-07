@@ -5,14 +5,39 @@ from django.forms.models import model_to_dict
 import os
 from django.conf import settings
 from datetime import datetime
-from django.contrib.auth.decorators import login_required
+from rest_framework import status
+from rest_framework.response import Response
+from django.db import transaction
+# API Auth
+from django.contrib.auth import authenticate
+from rest_framework.views import APIView
+#API權限
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authtoken.models import Token
+from rest_framework.authentication import TokenAuthentication 
+#密碼加密
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.hashers import check_password
 # Use Rest API
 from rest_framework import viewsets
 from .models import merchandise
-from .serializers import MerchandiseSerializer
+from .serializers import MerchandiseSerializer, MemberSerializer, MemberMerchandiseSerializer
+# API View 
 class MerchandiseViewSet(viewsets.ModelViewSet):
     queryset = merchandise.objects.all()
     serializer_class = MerchandiseSerializer
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication,)
+class MemberViewSet(viewsets.ModelViewSet):
+    queryset = member.objects.all()
+    serializer_class = MemberSerializer
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication,)
+class MemberMerchandiseViewSet(viewsets.ModelViewSet):
+    queryset = memberMerchandise.objects.all()
+    serializer_class = MemberMerchandiseSerializer
+    permission_classes = (IsAuthenticated,)
+    authentication_classes = (TokenAuthentication,)
 # Create your views here.
 def goToLogin(request):
     return redirect('/admin/')
@@ -64,14 +89,17 @@ def addData(request):
         cDate = request.POST.get('cDate')
         cDate = datetime.strptime(cDate, '%Y-%m-%d').date()
         cDescription = request.POST["cDescription"]
-        add = merchandise(cName=cName, cAuthor=cAuthor, cCompany=cCompany, cClass=cClass, cPrice=cPrice, cSort=cSort, cDate=cDate, cDescription=cDescription)
+        cInventory = request.POST["cInventory"]
+        add = merchandise(cName=cName, cAuthor=cAuthor, cCompany=cCompany, cClass=cClass, cPrice=cPrice, 
+                          cSort=cSort, cDate=cDate, cDescription=cDescription, cInventory=cInventory)
         if (request.FILES.get('image') != None):
             img = request.FILES.get('image')
             pic_name = img.name  # 先取得圖片檔案名稱
             if pic_name.split('.')[-1] == 'mp4':
                 error = '暫不支援上傳此格式圖片！！！'
             else:
-                add = merchandise(cName=cName, cAuthor=cAuthor, cCompany=cCompany, cClass=cClass, cPrice=cPrice, cSort=cSort, cDate=cDate, cDescription=cDescription, cImageName=pic_name, cImage=img)
+                add = merchandise(cName=cName, cAuthor=cAuthor, cCompany=cCompany, cClass=cClass, cPrice=cPrice, cSort=cSort, 
+                                  cDate=cDate, cDescription=cDescription, cImageName=pic_name, cImage=img, cInventory=cInventory)
         add.save()
         return redirect('/home/')
     else:
@@ -90,6 +118,7 @@ def edit(request, id=None):
         cDate = request.POST.get('cDate')
         cDate = datetime.strptime(cDate, '%Y-%m-%d').date()
         cDescription = request.POST["cDescription"]
+        cInventory = request.POST["cInventory"]
         update = merchandise.objects.get(cID=id)
         update.cName = cName
         update.cAuthor = cAuthor
@@ -99,6 +128,7 @@ def edit(request, id=None):
         update.cPrice = cPrice
         update.cDate = cDate
         update.cDescription = cDescription
+        update.cInventory = cInventory
         if (request.FILES.get('image') != None):
             img = request.FILES.get('image')
             pic_name = img.name
@@ -129,3 +159,164 @@ def delete(request, id=None):
     else :
         data = merchandise.objects.get(cID=id)
         return render(request, "delete.html", locals())
+
+class LoginView(APIView):
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            token, created = Token.objects.get_or_create(user=user)
+            return Response({'token': token.key}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+class RegisterView(APIView):
+    def post(self, request, format=None):
+        #獲取使用者未加密密碼
+        password = request.data.get('cPassword')
+        #加密密碼
+        hashed_password = make_password(password)
+        #將加密的密碼更新至POST Data之中
+        request.data['cPassword'] = hashed_password
+        email = request.data.get('cEmail')
+        #使用 serializer 進行數據的驗證與保存
+        serializer = MemberSerializer(data=request.data)
+        if member.objects.filter(cEmail=email).exists():
+            return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class MemberLoginView(APIView):
+    def post(self, request, format=None):
+        cEmail = request.data.get('cEmail')
+        cPassword = request.data.get('cPassword')
+        try:
+            # 取得與提供的使用者名稱相符的使用者對象
+            user = member.objects.get(cEmail=cEmail)
+            # 檢查使用者提供的密碼是否與資料庫中儲存的哈希密碼(Hashing Password)相符
+            if check_password(cPassword, user.cPassword):
+                # 如果匹配成功，則使用者提供的密碼與資料庫中儲存的哈希密碼匹配
+                return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
+            else:
+                # 如果失敗，則使用者提供的使用者名稱或密碼錯誤
+                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        except member.DoesNotExist:
+            # 如果找不到與提供的使用者名稱相符的使用者對象，則傳回使用者名稱或密碼錯誤
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+class MemberDataView(APIView):
+    def get(self, request):
+        # 獲取email參數
+        email = request.GET.get('email')
+        # 查詢資料
+        try:
+            user = member.objects.get(cEmail=email)
+            serializer = MemberSerializer(user)
+            return JsonResponse(serializer.data)
+        except member.DoesNotExist:
+            return JsonResponse({'error': 'Member not found'}, status=404)
+class UpdateMemberInfo(APIView):
+    def post(self, request):
+        new_info = request.data
+        # 獲取Member信箱
+        email = new_info.get('cEmail')
+        if new_info.get('cPassword') is not None:
+            try :
+                password = new_info.get('cPassword')
+                hashed_password = make_password(password)
+                request.data['cPassword'] = hashed_password
+            except :
+                print("Invalid password")
+        if new_info.get('cBirthday') is not None:
+            try:
+                birthday_str = request.data.get('cBirthday')
+                birthday_date = datetime.strptime(birthday_str, '%Y-%m-%d').date()
+                request.data['cBirthday'] = birthday_date
+            except ValueError:
+                return Response({'error': 'Invalid date format'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic(): #保證更新的一致性
+            try:
+                # 在資料庫中查找用户
+                user = member.objects.select_for_update().get(cEmail=email)
+            except member.DoesNotExist:
+                return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+            #使用 serializer 進行數據的驗證與更新
+            serializer = MemberSerializer(user, data=new_info, partial=True)
+            if serializer.is_valid():
+                    serializer.save()
+                    return Response({'message': 'Update successful'})
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)        
+class UploadMemberImageView(APIView):
+    def post(self, request):
+        if 'image' in request.FILES:
+            email = request.data.get('email')
+            image = request.FILES['image']
+            pic_name = image.name
+            update = member.objects.get(cEmail = email)
+            update.cImage = image
+            update.cImageName = pic_name
+            update.save()
+            return Response({'message': 'Image uploaded successfully'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+class DeleteMember(APIView):
+    def post(self, request):
+        email = request.data.get('cEmail')
+        try:
+            user = member.objects.get(cEmail=email)
+            user.delete()
+            return Response({'message': 'Delete successful'})
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=404)
+class LikeMerchandiseView(APIView):
+      def post(self, request):
+        email = request.data.get('cEmail')
+        merchandise_id = request.data.get('merchandise_id')
+        try:
+            member_obj = member.objects.get(cEmail=email)
+            if memberMerchandise.objects.filter(merchandise_id=merchandise_id, member_id=member_obj.pk).exists():
+                return Response({'error': 'Member already likes this merchandise'}, status=status.HTTP_400_BAD_REQUEST)
+            # 新增資料
+            member_merchandise = memberMerchandise.objects.create(
+                merchandise_id=merchandise_id,
+                member_id=member_obj.pk
+            )
+            datas = memberMerchandise.objects.filter(member_id=member_obj.pk)
+            serializer = MemberMerchandiseSerializer(datas, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except merchandise.DoesNotExist:
+            return Response({'error': 'Merchandise not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class GetLikeMerchandiseView(APIView):
+    def get(self, request):
+        email = request.query_params.get('email')
+        try:
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            user_datas = memberMerchandise.objects.filter(member_id=user_id)
+            serializer = MemberMerchandiseSerializer(user_datas, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except memberMerchandise.DoesNotExist:
+            return Response({'error': 'Data not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class DeleteLikeMerchandiseView(APIView):
+    def post(self, request):
+        email = request.data.get('cEmail')
+        merchandise = int(request.data.get('merchandise', 0))  # Ensure merchandise_id is integer
+        try:
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            user_data = memberMerchandise.objects.filter(member_id=user_id, merchandise_id=merchandise).first()
+            if user_data:
+                user_data.delete()
+                datas = memberMerchandise.objects.filter(member_id=user_id)
+                serializer = MemberMerchandiseSerializer(datas, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Data not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)

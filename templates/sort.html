@@ -35,6 +35,7 @@
               <th class="d-none d-md-table-cell">Class</th>
               <th class="d-none d-md-table-cell">Date</th>
               <th class="d-none d-md-table-cell">Price(JPY¥)</th>
+              <th class="d-none d-md-table-cell">Inventory</th>
               <th>Update</th>
             </tr>
           </thead>
@@ -50,6 +51,7 @@
                 <td class="d-none d-md-table-cell">{{ data.cClass }}</td>
                 <td class="d-none d-md-table-cell">{{ data.cDate|date:"Y-m-d"}}</td>
                 <td class="d-none d-md-table-cell">{{ data.cPrice }}</td>
+                <td class="d-none d-md-table-cell">{{ data.cInventory }}</td>
                 <td style="text-align: center;">
                     <div style="display: block; margin-bottom: 20px;">
                         <button id="editButton" onclick="editProduct({{ data.cID }})" class="btn btn-primary mybutton-style">Edit</button>

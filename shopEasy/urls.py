@@ -25,10 +25,25 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 router = DefaultRouter()
 router.register(r'merchandises', MerchandiseViewSet)
+#router.register(r'members', MemberViewSet)
+router.register(r'memberMerchandises', MemberMerchandiseViewSet)
+
 
 urlpatterns = [
     path('', goToLogin),
     path('api/', include(router.urls)),
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+    path('auth/login/', LoginView.as_view(), name='login'),
+    path('register/', RegisterView.as_view(), name='register'),
+    path('member/login/', MemberLoginView.as_view(), name='memberLogin'),
+    path('getmemberdata/', MemberDataView.as_view(), name='getMemberData'),
+    path('edit/memberinfo/', UpdateMemberInfo.as_view(), name='editMemberInfo'),
+    path('delete/member/', DeleteMember.as_view(), name='deleteMember'),
+    path('upload/image/', UploadMemberImageView.as_view(), name='uploadMemberImage'),
+    path('like/merchandise/', LikeMerchandiseView.as_view(),name='likeMerchandise'),
+    path('get/likemerchandise/', GetLikeMerchandiseView.as_view(),name='getlikeMerchandise'),
+    path('delete/likemerchandise/', DeleteLikeMerchandiseView.as_view(),name='deleteLikeMerchandise'),
+    # Database Manager
     path('admin/', admin.site.urls),
     path('add/', addData),
     path('edit/<int:id>/', edit),
