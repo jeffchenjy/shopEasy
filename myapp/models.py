@@ -32,19 +32,24 @@ class member(models.Model): #資料庫名稱
     cSex = models.CharField(max_length=7, default='Unknown')
     cImageName = models.CharField(max_length=254, null=True)
     cImage = models.ImageField(upload_to='images', null=True)
+    cCreatedTime = models.DateTimeField(default=django.utils.timezone.now)
     
 class memberMerchandise(models.Model):
     id = models.AutoField(primary_key=True)
-    merchandise = models.ForeignKey('merchandise', on_delete=models.CASCADE)
-    cRank = models.IntegerField(null=True)
     member = models.ForeignKey('member', on_delete=models.CASCADE)
+    cLikeMerchandiseList = models.JSONField()
     created_time = models.DateTimeField(default=django.utils.timezone.now)
-    class Meta:
-        unique_together = (('member', 'merchandise'),)
-
-class memberOrder(models.Model):
+        
+class memberCart(models.Model):
     id = models.AutoField(primary_key=True)
     member = models.ForeignKey('member', on_delete=models.CASCADE)
     cMerchandiseList = models.JSONField()
-    cPayment = models.CharField(max_length=20, default='Cash')
     created_time = models.DateTimeField(default=django.utils.timezone.now)
+
+
+# class memberOrder(models.Model):
+#     id = models.AutoField(primary_key=True)
+#     member = models.ForeignKey('member', on_delete=models.CASCADE)
+#     cMerchandiseList = models.JSONField()
+#     cPayment = models.CharField(max_length=20, default='Cash')
+#     created_time = models.DateTimeField(default=django.utils.timezone.now)

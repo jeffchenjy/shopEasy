@@ -8,6 +8,7 @@ from datetime import datetime
 from rest_framework import status
 from rest_framework.response import Response
 from django.db import transaction
+from django.utils import timezone
 # API Auth
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
@@ -20,8 +21,8 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.hashers import check_password
 # Use Rest API
 from rest_framework import viewsets
-from .models import merchandise
-from .serializers import MerchandiseSerializer, MemberSerializer, MemberMerchandiseSerializer
+from .models import *
+from .serializers import MerchandiseSerializer, MemberSerializer, MemberMerchandiseSerializer, MemberCartSerializer
 # API View 
 class MerchandiseViewSet(viewsets.ModelViewSet):
     queryset = merchandise.objects.all()
@@ -33,11 +34,11 @@ class MemberViewSet(viewsets.ModelViewSet):
     serializer_class = MemberSerializer
     permission_classes = (IsAuthenticated,)
     authentication_classes = (TokenAuthentication,)
-class MemberMerchandiseViewSet(viewsets.ModelViewSet):
-    queryset = memberMerchandise.objects.all()
-    serializer_class = MemberMerchandiseSerializer
-    permission_classes = (IsAuthenticated,)
-    authentication_classes = (TokenAuthentication,)
+# class MemberMerchandiseViewSet(viewsets.ModelViewSet):
+#     queryset = memberMerchandise.objects.all()
+#     serializer_class = MemberMerchandiseSerializer
+#     permission_classes = (IsAuthenticated,)
+#     authentication_classes = (TokenAuthentication,)
 # Create your views here.
 def goToLogin(request):
     return redirect('/admin/')
@@ -185,7 +186,7 @@ class RegisterView(APIView):
             return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return JsonResponse(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class MemberLoginView(APIView):
@@ -197,8 +198,8 @@ class MemberLoginView(APIView):
             user = member.objects.get(cEmail=cEmail)
             # 檢查使用者提供的密碼是否與資料庫中儲存的哈希密碼(Hashing Password)相符
             if check_password(cPassword, user.cPassword):
-                # 如果匹配成功，則使用者提供的密碼與資料庫中儲存的哈希密碼匹配
-                return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
+                serializer = MemberSerializer(user)
+                return JsonResponse(serializer.data, status=status.HTTP_200_OK)
             else:
                 # 如果失敗，則使用者提供的使用者名稱或密碼錯誤
                 return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -206,9 +207,9 @@ class MemberLoginView(APIView):
             # 如果找不到與提供的使用者名稱相符的使用者對象，則傳回使用者名稱或密碼錯誤
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 class MemberDataView(APIView):
-    def get(self, request):
+    def post(self, request):
         # 獲取email參數
-        email = request.GET.get('email')
+        email = request.data.get('cEmail')
         # 查詢資料
         try:
             user = member.objects.get(cEmail=email)
@@ -225,14 +226,14 @@ class UpdateMemberInfo(APIView):
             try :
                 password = new_info.get('cPassword')
                 hashed_password = make_password(password)
-                request.data['cPassword'] = hashed_password
+                new_info['cPassword'] = hashed_password
             except :
                 print("Invalid password")
         if new_info.get('cBirthday') is not None:
             try:
                 birthday_str = request.data.get('cBirthday')
                 birthday_date = datetime.strptime(birthday_str, '%Y-%m-%d').date()
-                request.data['cBirthday'] = birthday_date
+                new_info['cBirthday'] = birthday_date
             except ValueError:
                 return Response({'error': 'Invalid date format'}, status=status.HTTP_400_BAD_REQUEST)
         with transaction.atomic(): #保證更新的一致性
@@ -245,7 +246,7 @@ class UpdateMemberInfo(APIView):
             serializer = MemberSerializer(user, data=new_info, partial=True)
             if serializer.is_valid():
                     serializer.save()
-                    return Response({'message': 'Update successful'})
+                    return Response({'message': 'Data update successfully'}, status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)        
 class UploadMemberImageView(APIView):
@@ -266,57 +267,171 @@ class DeleteMember(APIView):
         email = request.data.get('cEmail')
         try:
             user = member.objects.get(cEmail=email)
+            image_path = os.path.join(settings.MEDIA_ROOT, 'images', user.cImageName)
+            # 刪除圖片文件
+            if os.path.exists(image_path):
+                os.remove(image_path)
+            user_id = user.pk
+            user_data = memberMerchandise.objects.filter(member_id=user_id)
+            if user_data:
+                user_data.delete()
             user.delete()
             return Response({'message': 'Delete successful'})
         except member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=404)
-class LikeMerchandiseView(APIView):
+class AddLikeMerchandiseView(APIView):
       def post(self, request):
         email = request.data.get('cEmail')
         merchandise_id = request.data.get('merchandise_id')
         try:
-            member_obj = member.objects.get(cEmail=email)
-            if memberMerchandise.objects.filter(merchandise_id=merchandise_id, member_id=member_obj.pk).exists():
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            item = merchandise.objects.get(cID = merchandise_id)
+            merchandise_name = item.cName
+            try:
+                like_entry = memberMerchandise.objects.get(member_id=user_id)
+                like_data = like_entry.cLikeMerchandiseList
+            except memberMerchandise.DoesNotExist:
+                # 如果資料不存在，建立一個新的資料
+                like_entry = memberMerchandise.objects.create(member_id=user_id, cLikeMerchandiseList={})
+                like_data = {}
+            if merchandise_id in like_data:
+                # 如果存在，則什麼都不做，返回
                 return Response({'error': 'Member already likes this merchandise'}, status=status.HTTP_400_BAD_REQUEST)
-            # 新增資料
-            member_merchandise = memberMerchandise.objects.create(
-                merchandise_id=merchandise_id,
-                member_id=member_obj.pk
-            )
-            datas = memberMerchandise.objects.filter(member_id=member_obj.pk)
-            serializer = MemberMerchandiseSerializer(datas, many=True)
+            else:
+                # 如果不存在，則新增商品
+                current_time = timezone.now().date()
+                like_data[merchandise_id] = {
+                    'name': merchandise_name,
+                    'addedDate': current_time.isoformat()
+                }
+            like_entry.cLikeMerchandiseList = like_data
+            like_entry.save()
+            #返回喜愛項目資料
+            update_member_like = memberMerchandise.objects.get(member_id=user_id)
+            serializer = MemberMerchandiseSerializer(update_member_like)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except merchandise.DoesNotExist:
             return Response({'error': 'Merchandise not found'}, status=status.HTTP_404_NOT_FOUND)
         except member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
 class GetLikeMerchandiseView(APIView):
-    def get(self, request):
-        email = request.query_params.get('email')
+    def post(self, request):
+        email =  request.data.get('cEmail')
         try:
             user = member.objects.get(cEmail=email)
             user_id = user.pk
-            user_datas = memberMerchandise.objects.filter(member_id=user_id)
-            serializer = MemberMerchandiseSerializer(user_datas, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except memberMerchandise.DoesNotExist:
-            return Response({'error': 'Data not found'}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                #返回喜愛項目資料
+                member_like = memberMerchandise.objects.get(member_id=user_id)
+                serializer = MemberMerchandiseSerializer(member_like)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except memberMerchandise.DoesNotExist:
+                # 如果喜愛項目資料不存在，返回錯誤
+                return Response({'error': 'Like not found'}, status=status.HTTP_404_NOT_FOUND)
         except member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
 class DeleteLikeMerchandiseView(APIView):
     def post(self, request):
         email = request.data.get('cEmail')
-        merchandise = int(request.data.get('merchandise', 0))  # Ensure merchandise_id is integer
-        try:
+        merchandise_id = request.data.get('merchandiseID')
+        try: 
             user = member.objects.get(cEmail=email)
             user_id = user.pk
-            user_data = memberMerchandise.objects.filter(member_id=user_id, merchandise_id=merchandise).first()
-            if user_data:
-                user_data.delete()
-                datas = memberMerchandise.objects.filter(member_id=user_id)
-                serializer = MemberMerchandiseSerializer(datas, many=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            else:
-                return Response({'error': 'Data not found'}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                member_like = memberMerchandise.objects.get(member_id=user_id)
+                likemerchandise_list = member_like.cLikeMerchandiseList
+                if merchandise_id in likemerchandise_list:
+                    del likemerchandise_list[merchandise_id]
+                    member_like.save()
+                    #返回喜愛項目資料
+                    update_member_like = memberMerchandise.objects.get(member_id=user_id)
+                    serializer = MemberMerchandiseSerializer(update_member_like)
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({'error': 'Item not found in cart'}, status=status.HTTP_404_NOT_FOUND)
+            except memberMerchandise.DoesNotExist:
+                # 如果喜愛項目資料不存在，返回錯誤
+                return Response({'error': 'Like not found'}, status=status.HTTP_404_NOT_FOUND)
         except member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class AddToCartView(APIView):
+    def post(self, request):
+        newData = request.data
+        email = newData.get('cEmail')
+        merchandise_id = newData.get('cID')
+        merchandise_name = newData.get('cName')
+        merchandise_price = newData.get('cPrice')
+        quantity = newData.get('quantity')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            try:
+                cart_entry = memberCart.objects.get(member_id=user_id)
+                cart_data = cart_entry.cMerchandiseList
+            except memberCart.DoesNotExist:
+                # 如果購物車不存在，建立一個新的購物車
+                cart_entry = memberCart.objects.create(member_id=user_id, cMerchandiseList={})
+                cart_data = {}
+            if merchandise_id in cart_data:
+                # 如果存在，則更新商品數量
+                cart_data[merchandise_id]['quantity'] = int(quantity)
+            else:
+                # 如果不存在，則新增商品
+                current_time = timezone.now().date()
+                cart_data[merchandise_id] = {
+                    'name': merchandise_name,
+                    'price': merchandise_price,
+                    'quantity': int(quantity),
+                    'addedDate': current_time.isoformat()
+                }
+            cart_entry.cMerchandiseList = cart_data
+            cart_entry.save()
+            #返回購物車資料
+            update_member_cart = memberCart.objects.get(member_id=user_id)
+            serializer = MemberCartSerializer(update_member_cart)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class GetCartView(APIView):
+    def post(self, request):
+        email = request.data.get('cEmail')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            try:
+                #返回購物車資料
+                member_cart = memberCart.objects.get(member_id=user_id)
+                serializer = MemberCartSerializer(member_cart)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except memberCart.DoesNotExist:
+                # 如果購物車不存在，返回錯誤
+                return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+class DeleteCartItemView(APIView):
+    def post(self, request):
+        email = request.data.get('cEmail')
+        merchandise_id = request.data.get('cID')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            try:
+                member_cart = memberCart.objects.get(member_id=user_id)
+                merchandise_list = member_cart.cMerchandiseList
+                if merchandise_id in merchandise_list:
+                    del merchandise_list[merchandise_id]
+                    member_cart.save()
+                    #返回購物車資料
+                    update_member_cart = memberCart.objects.get(member_id=user_id)
+                    serializer = MemberCartSerializer(update_member_cart)
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({'error': 'Item not found in cart'}, status=status.HTTP_404_NOT_FOUND)
+            except memberCart.DoesNotExist:
+                # 如果購物車不存在，返回錯誤
+                return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+
