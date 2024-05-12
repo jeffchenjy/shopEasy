@@ -22,7 +22,7 @@ from django.contrib.auth.hashers import check_password
 # Use Rest API
 from rest_framework import viewsets
 from .models import *
-from .serializers import MerchandiseSerializer, MemberSerializer, MemberMerchandiseSerializer, MemberCartSerializer
+from .serializers import MerchandiseSerializer, MemberSerializer, MemberMerchandiseSerializer, MemberCartSerializer, MemberOrderSerializer
 # API View 
 class MerchandiseViewSet(viewsets.ModelViewSet):
     queryset = merchandise.objects.all()
@@ -34,11 +34,6 @@ class MemberViewSet(viewsets.ModelViewSet):
     serializer_class = MemberSerializer
     permission_classes = (IsAuthenticated,)
     authentication_classes = (TokenAuthentication,)
-# class MemberMerchandiseViewSet(viewsets.ModelViewSet):
-#     queryset = memberMerchandise.objects.all()
-#     serializer_class = MemberMerchandiseSerializer
-#     permission_classes = (IsAuthenticated,)
-#     authentication_classes = (TokenAuthentication,)
 # Create your views here.
 def goToLogin(request):
     return redirect('/admin/')
@@ -206,7 +201,30 @@ class MemberLoginView(APIView):
         except member.DoesNotExist:
             # 如果找不到與提供的使用者名稱相符的使用者對象，則傳回使用者名稱或密碼錯誤
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-class MemberDataView(APIView):
+class MemberChangePasswordView(APIView):
+    def post(self, request, format=None):
+        info = request.data
+        cEmail = info.get('cEmail')
+        try:
+            # 取得與提供的使用者名稱相符的使用者對象
+            user = member.objects.get(cEmail=cEmail)
+            if info.get('cPassword') is not None:
+                try :
+                    password = info.get('cPassword')
+                    hashed_password = make_password(password)
+                    info['cPassword'] = hashed_password
+                    serializer = MemberSerializer(user, data=info, partial=True)
+                    if serializer.is_valid():
+                        serializer.save()
+                        return Response({'message': 'Password change successful'}, status=status.HTTP_200_OK)
+                except :
+                    return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({'message': 'Email verification successful'}, status=status.HTTP_200_OK)
+        except member.DoesNotExist:
+            # 如果找不到與提供的使用者名稱相符的使用者對象，則傳回錯誤
+            return Response({'error': 'メンバーが存在しません。もう一度電子メールを入力してください。'}, status=status.HTTP_404_NOT_FOUND)
+class GetMemberDataView(APIView):
     def post(self, request):
         # 獲取email參數
         email = request.data.get('cEmail')
@@ -246,7 +264,9 @@ class UpdateMemberInfo(APIView):
             serializer = MemberSerializer(user, data=new_info, partial=True)
             if serializer.is_valid():
                     serializer.save()
-                    return Response({'message': 'Data update successfully'}, status=status.HTTP_201_CREATED)
+                    updateData = member.objects.get(cEmail=email)
+                    serializer = MemberSerializer(updateData)
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)        
 class UploadMemberImageView(APIView):
@@ -256,12 +276,22 @@ class UploadMemberImageView(APIView):
             image = request.FILES['image']
             pic_name = image.name
             update = member.objects.get(cEmail = email)
+            try : 
+                image_path = os.path.join(settings.MEDIA_ROOT, 'images', update.cImageName)
+                # 刪除圖片文件
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            except member.DoesNotExist:
+                print("No such member exists")
+                return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
             update.cImage = image
             update.cImageName = pic_name
             update.save()
-            return Response({'message': 'Image uploaded successfully'}, status=status.HTTP_201_CREATED)
+            updateData = member.objects.get(cEmail=email)
+            serializer = MemberSerializer(updateData)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
-            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No image provided'}, status=status.HTTP_404_NOT_FOUND)
 class DeleteMember(APIView):
     def post(self, request):
         email = request.data.get('cEmail')
@@ -435,3 +465,118 @@ class DeleteCartItemView(APIView):
         except member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
 
+class CreateOrderView(APIView):
+    def post(self, request):
+        newData = request.data
+        # 訂購資訊
+        name = newData.get('customerName')
+        email = newData.get('customerEmail')
+        phone = newData.get('customerPhone')
+        recipientName = newData.get('recipientName')
+        recipientEmail = newData.get('recipientEmail')
+        recipientPhone = newData.get('recipientPhone')
+        shippingAddress = newData.get('shippingAddress')
+        shippingMethod = newData.get('shippingMethod')
+        payment = newData.get('payment')
+        deliveryTime = newData.get('deliveryTime')
+        # 商品資訊
+        merchandise_data = newData.get('merchandise')
+        totalQuantity = newData.get('totalQuantity')
+        totalPrice = newData.get('totalPrice')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            #建立訂單
+            order_entry = memberOrder.objects.create(member_id=user_id, orderInfo={})
+            order_data = {
+                'merchandise': {}  # 初始化 merchandise 鍵的值為一個空字典
+            }
+            current_time = timezone.now().strftime('%Y-%m-%d')  # 將日期轉換為字串
+            for item_info in merchandise_data:
+                item_id = item_info[0]  # 商品ID
+                item_name = item_info[1]  # 商品名稱
+                item_price = item_info[2]  # 商品價格
+                item_quantity = item_info[3]  # 商品數量
+                item_addedDate = item_info[4]  # 商品新增日期
+                order_data['merchandise'][item_id] = {
+                    'name': item_name,
+                    'price': item_price,
+                    'quantity': int(item_quantity),
+                    'addedDate': item_addedDate,
+                }
+            order_data['customer'] = {
+                'name': name,
+                'email': email,
+                'phone': phone,
+            }
+            order_data['recipient'] = {
+                'name': recipientName,
+                'email': recipientEmail,
+                'phone': recipientPhone,
+            }
+            order_data['shipping'] = {
+                'shippingMethod': shippingMethod,
+                'shippingAddress': shippingAddress,
+                'deliveryTime': deliveryTime,
+            }
+            order_data['payment'] = {
+                'totalQuantity': totalQuantity,
+                'totalPrice': totalPrice,
+                'payment': payment,
+            }
+            order_data['createTime'] = current_time
+            order_entry.orderInfo = order_data
+            order_entry.save()
+
+            #清除購物車資料
+            try:
+                member_cart = memberCart.objects.get(member_id=user_id)
+                member_cart.delete()
+                try:
+                    #返回訂單資料
+                    member_orders = memberOrder.objects.filter(member_id=user_id)
+                    serializer = MemberOrderSerializer(member_orders, many=True)
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+                except memberOrder.DoesNotExist:
+                # 如果訂單不存在，返回錯誤
+                    return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+            except memberCart.DoesNotExist:
+                return Response({'error': 'Cart not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class GetOrderView(APIView):
+    def post(self, request):
+        email = request.data.get('cEmail')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            try:
+                #返回訂單資料
+                member_orders = memberOrder.objects.filter(member_id=user_id)
+                serializer = MemberOrderSerializer(member_orders, many=True)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except memberOrder.DoesNotExist:
+                # 如果訂單不存在，返回錯誤
+                return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+class DeleteOrderView(APIView):
+    def post(self, request):
+        id = request.data.get('orderID')
+        email = request.data.get('cEmail')
+        try: 
+            user = member.objects.get(cEmail=email)
+            user_id = user.pk
+            try:
+                #刪除訂單資料
+                member_orders = memberOrder.objects.filter(member_id=user_id, id = id)
+                member_orders.delete()
+                #返回訂單資料
+                renew_member_orders = memberOrder.objects.filter(member_id=user_id)
+                serializer = MemberOrderSerializer(renew_member_orders, many=True)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except memberOrder.DoesNotExist:
+                # 如果訂單不存在，返回錯誤
+                return Response({'error': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        except member.DoesNotExist:
+            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)

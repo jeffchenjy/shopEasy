@@ -46,10 +46,8 @@ class memberCart(models.Model):
     cMerchandiseList = models.JSONField()
     created_time = models.DateTimeField(default=django.utils.timezone.now)
 
-
-# class memberOrder(models.Model):
-#     id = models.AutoField(primary_key=True)
-#     member = models.ForeignKey('member', on_delete=models.CASCADE)
-#     cMerchandiseList = models.JSONField()
-#     cPayment = models.CharField(max_length=20, default='Cash')
-#     created_time = models.DateTimeField(default=django.utils.timezone.now)
+class memberOrder(models.Model):
+    id = models.AutoField(primary_key=True)
+    member = models.ForeignKey('member', on_delete=models.CASCADE)
+    orderInfo = models.JSONField()
+    created_time = models.DateTimeField(default=django.utils.timezone.now)
