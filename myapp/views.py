@@ -277,16 +277,19 @@ class UploadMemberImageView(APIView):
             pic_name = image.name
             update = member.objects.get(cEmail = email)
             try : 
-                image_path = os.path.join(settings.MEDIA_ROOT, 'images', update.cImageName)
+                if update.cImageName:
+                    image_path = os.path.join(settings.MEDIA_ROOT, 'images', update.cImageName)
+                else:
+                    image_path = os.path.join(settings.MEDIA_ROOT, 'images', 'default_image.jpg')
                 # 刪除圖片文件
                 if os.path.exists(image_path):
                     os.remove(image_path)
+                else :
+                    update.cImage = image
+                    update.cImageName = pic_name
+                    update.save()
             except member.DoesNotExist:
-                print("No such member exists")
                 return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
-            update.cImage = image
-            update.cImageName = pic_name
-            update.save()
             updateData = member.objects.get(cEmail=email)
             serializer = MemberSerializer(updateData)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
